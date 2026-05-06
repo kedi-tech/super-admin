@@ -1,0 +1,417 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT
+  BILLING
+}
+
+enum CustomerStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum LicenseType {
+  CLOUD_SUBSCRIPTION
+  CLOUD_LIFETIME
+  HYBRID_SUBSCRIPTION
+  HYBRID_LIFETIME
+  OFFLINE_SUBSCRIPTION
+  OFFLINE_LIFETIME
+  ECOMMERCE_SUBSCRIPTION
+  ECOMMERCE_LIFETIME
+  COMMERCE_SUITE_SUBSCRIPTION
+  COMMERCE_SUITE_LIFETIME
+}
+
+enum LicenseStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+  EXPIRED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+  PENDING
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+  LIFETIME
+}
+
+enum PaymentType {
+  SUBSCRIPTION
+  INSTALLATION
+  SUPPORT
+  ONE_TIME
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CARD
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  REFUNDED
+}
+
+enum DeviceStatus {
+  ACTIVE
+  DEACTIVATED
+  BLOCKED
+}
+
+enum SupportStatus {
+  ACTIVE
+  EXPIRED
+  NONE
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ProductSlug {
+  CLOUD_POS
+  HYBRID_POS
+  OFFLINE_POS
+  ECOMMERCE
+  COMMERCE_SUITE
+}
+
+// ─── Admin Users ──────────────────────────────────────────────────────────────
+
+model AdminUser {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String
+  passwordHash      String
+  role              AdminRole @default(SUPPORT)
+  twoFactorEnabled  Boolean   @default(false)
+  twoFactorSecret   String?
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  sessions          AdminSession[]
+  auditLogs         AuditLog[]
+  assignedTickets   SupportTicket[]   @relation("AssignedTickets")
+  ticketNotes       TicketNote[]
+  verifiedPayments  Payment[]         @relation("VerifiedPayments")
+  createdLicenses   License[]         @relation("CreatedLicenses")
+  deactivatedDevices Device[]         @relation("DeactivatedDevices")
+  installations     Installation[]    @relation("InstalledBy")
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id          String    @id @default(cuid())
+  adminUserId String
+  tokenHash   String    @unique
+  ipAddress   String?
+  userAgent   String?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@map("admin_sessions")
+}
+
+// ─── Customers ────────────────────────────────────────────────────────────────
+
+model Customer {
+  id           String         @id @default(cuid())
+  businessName String
+  contactName  String
+  phone        String?
+  whatsapp     String?
+  email        String?
+  country      String?
+  address      String?
+  status       CustomerStatus @default(ACTIVE)
+  notes        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  licenses      License[]
+  subscriptions Subscription[]
+  payments      Payment[]
+  devices       Device[]
+  installations Installation[]
+  tickets       SupportTicket[]
+
+  @@map("customers")
+}
+
+// ─── Products & Packages ──────────────────────────────────────────────────────
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  slug        ProductSlug @unique
+  description String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+
+  packages    Package[]
+
+  @@map("products")
+}
+
+model Package {
+  id          String       @id @default(cuid())
+  productId   String
+  name        String
+  billingCycle BillingCycle
+  price       Int          // stored in cents
+  currency    String       @default("GNF")
+  maxDevices  Int          @default(1)
+  maxBranches Int          @default(1)
+  maxUsers    Int          @default(5)
+  features    Json         @default("[]")
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+
+  product       Product        @relation(fields: [productId], references: [id])
+  licenses      License[]
+  subscriptions Subscription[]
+
+  @@map("packages")
+}
+
+// ─── Licenses ─────────────────────────────────────────────────────────────────
+
+model License {
+  id                     String        @id @default(cuid())
+  key                    String        @unique
+  customerId             String
+  packageId              String?
+  type                   LicenseType
+  status                 LicenseStatus @default(ACTIVE)
+  maxDevices             Int           @default(1)
+  maxBranches            Int           @default(1)
+  maxUsers               Int           @default(5)
+  expiresAt              DateTime?
+  gracePeriodDays        Int           @default(7)
+  offlineLicensePayload  Json?
+  offlineLicenseSignature String?
+  createdBy              String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  package         Package?       @relation(fields: [packageId], references: [id])
+  creator         AdminUser?     @relation("CreatedLicenses", fields: [createdBy], references: [id])
+  subscription    Subscription?
+  devices         Device[]
+  validationLogs  LicenseValidationLog[]
+
+  @@map("licenses")
+}
+
+model LicenseValidationLog {
+  id            String   @id @default(cuid())
+  licenseId     String
+  deviceId      String?
+  ipAddress     String?
+  success       Boolean
+  failureReason String?
+  validatedAt   DateTime @default(now())
+
+  license License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@map("license_validation_logs")
+}
+
+// ─── Subscriptions ────────────────────────────────────────────────────────────
+
+model Subscription {
+  id             String             @id @default(cuid())
+  customerId     String
+  packageId      String?
+  licenseId      String?            @unique
+  status         SubscriptionStatus @default(ACTIVE)
+  billingCycle   BillingCycle
+  amount         Int                // cents
+  currency       String             @default("GNF")
+  startDate      DateTime
+  endDate        DateTime?
+  renewalDate    DateTime?
+  gracePeriodDays Int               @default(7)
+  autoRenew      Boolean            @default(false)
+  cancelledAt    DateTime?
+  cancelReason   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  customer Customer  @relation(fields: [customerId], references: [id])
+  package  Package?  @relation(fields: [packageId], references: [id])
+  license  License?  @relation(fields: [licenseId], references: [id])
+  payments Payment[]
+
+  @@map("subscriptions")
+}
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
+model Payment {
+  id             String        @id @default(cuid())
+  customerId     String
+  subscriptionId String?
+  type           PaymentType
+  amount         Int           // cents
+  currency       String        @default("GNF")
+  method         PaymentMethod
+  reference      String?
+  status         PaymentStatus @default(PENDING)
+  invoiceNumber  String?
+  notes          String?
+  paidAt         DateTime?
+  verifiedBy     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  verifier     AdminUser?    @relation("VerifiedPayments", fields: [verifiedBy], references: [id])
+
+  @@map("payments")
+}
+
+// ─── Devices ──────────────────────────────────────────────────────────────────
+
+model Device {
+  id              String       @id @default(cuid())
+  licenseId       String
+  customerId      String
+  fingerprint     String
+  machineName     String?
+  os              String?
+  osVersion       String?
+  ipAddress       String?
+  status          DeviceStatus @default(ACTIVE)
+  activatedAt     DateTime     @default(now())
+  lastSeenAt      DateTime?
+  deactivatedAt   DateTime?
+  deactivatedBy   String?
+  createdAt       DateTime     @default(now())
+
+  license     License    @relation(fields: [licenseId], references: [id])
+  customer    Customer   @relation(fields: [customerId], references: [id])
+  deactivator AdminUser? @relation("DeactivatedDevices", fields: [deactivatedBy], references: [id])
+
+  @@unique([licenseId, fingerprint])
+  @@map("devices")
+}
+
+// ─── Installations ────────────────────────────────────────────────────────────
+
+model Installation {
+  id                String        @id @default(cuid())
+  customerId        String
+  licenseId         String?
+  installedAt       DateTime
+  installedBy       String?
+  branches          Int           @default(1)
+  machines          Int           @default(1)
+  supportStatus     SupportStatus @default(NONE)
+  maintenanceStatus SupportStatus @default(NONE)
+  nextMaintenanceDate DateTime?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  customer  Customer   @relation(fields: [customerId], references: [id])
+  installer AdminUser? @relation("InstalledBy", fields: [installedBy], references: [id])
+
+  @@map("installations")
+}
+
+// ─── Support ──────────────────────────────────────────────────────────────────
+
+model SupportTicket {
+  id          String         @id @default(cuid())
+  customerId  String
+  subject     String
+  description String?
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  assignedTo  String?
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  customer Customer    @relation(fields: [customerId], references: [id])
+  assignee AdminUser?  @relation("AssignedTickets", fields: [assignedTo], references: [id])
+  notes    TicketNote[]
+
+  @@map("support_tickets")
+}
+
+model TicketNote {
+  id         String   @id @default(cuid())
+  ticketId   String
+  authorId   String
+  body       String
+  isInternal Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author AdminUser     @relation(fields: [authorId], references: [id])
+
+  @@map("ticket_notes")
+}
+
+// ─── Audit Logs ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String?
+  action      String
+  targetType  String?
+  targetId    String?
+  payload     Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  adminUser AdminUser? @relation(fields: [adminUserId], references: [id])
+
+  @@map("audit_logs")
+}
