@@ -30,7 +30,7 @@ export default async function PackagesPage() {
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {packages.length === 0 ? (
               <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-zinc-400">No packages yet.</td></tr>
-            ) : packages.map((p) => (
+            ) : packages.map((p: (typeof packages)[number]) => (
               <tr key={p.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                 <td className="px-4 py-3 font-medium text-zinc-800 dark:text-zinc-200">{p.name}</td>
                 <td className="px-4 py-3 text-xs text-zinc-500">{p.product.name}</td>
