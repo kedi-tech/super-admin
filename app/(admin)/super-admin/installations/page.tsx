@@ -24,7 +24,7 @@ export default async function InstallationsPage() {
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {installations.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-zinc-400">No installations yet.</td></tr>
-            ) : installations.map((i) => (
+            ) : installations.map((i: (typeof installations)[number]) => (
               <tr key={i.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                 <td className="px-4 py-3 font-medium">
                   <Link href={`/super-admin/customers/${i.customerId}`} className="hover:underline">
