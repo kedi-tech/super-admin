@@ -18,7 +18,7 @@ export async function RecentPayments() {
           <p className="px-5 py-6 text-sm text-zinc-400 text-center">No payments yet.</p>
         ) : (
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {payments.map((p) => (
+            {payments.map((p: (typeof payments)[number]) => (
               <li key={p.id} className="flex items-center justify-between px-5 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">
