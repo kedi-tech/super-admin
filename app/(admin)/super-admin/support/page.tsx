@@ -24,7 +24,7 @@ export default async function SupportPage() {
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {tickets.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-zinc-400">No tickets.</td></tr>
-            ) : tickets.map((t) => (
+            ) : tickets.map((t: (typeof tickets)[number]) => (
               <tr key={t.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                 <td className="px-4 py-3 font-medium max-w-[240px]">
                   <Link href={`/super-admin/support/${t.id}`} className="hover:underline truncate block">
