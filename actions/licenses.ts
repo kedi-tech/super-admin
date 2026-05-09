@@ -144,8 +144,9 @@ export async function generateOfflineLicenseFileAction(licenseId: string) {
     if (!license) return { error: "License not found." }
     if (!license.type.startsWith("OFFLINE")) return { error: "Only OFFLINE licenses can have offline files." }
 
-    const privateKeyPem = process.env.LICENSE_PRIVATE_KEY
-    if (!privateKeyPem) return { error: "LICENSE_PRIVATE_KEY not configured." }
+    const rawKey = process.env.LICENSE_PRIVATE_KEY
+    if (!rawKey) return { error: "LICENSE_PRIVATE_KEY not configured." }
+    const privateKeyPem = Buffer.from(rawKey, 'base64').toString('utf8')
 
     const payload: OfflineLicensePayload = {
       licenseKey: license.key,
